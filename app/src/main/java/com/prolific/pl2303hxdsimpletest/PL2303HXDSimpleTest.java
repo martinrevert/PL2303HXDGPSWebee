@@ -1,7 +1,9 @@
 package com.prolific.pl2303hxdsimpletest;
 
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.Random;
 
@@ -314,53 +316,67 @@ public class PL2303HXDSimpleTest extends Activity {
         byte[] rbuf = new byte[4096];
         //byte[] rbuf = new byte[20];
         StringBuffer sbHex = new StringBuffer();
+        // String line = "";
+        // BufferedReader reader = new BufferedReader(new InputStreamReader(rbuf, "UTF-8"));
+
 
         Log.d(TAG, "Enter readDataFromSerial");
 
-        if (null == mSerial)
-            return;
 
-        if (!mSerial.isConnected())
-            return;
+        while (mSerial.isConnected()) {
 
-        len = mSerial.read(rbuf);
-        if (len < 0) {
-            Log.d(TAG, "Fail to bulkTransfer(read data)");
-            return;
-        }
+            if (null == mSerial)
+                return;
 
-        if (len > 0) {
-            if (SHOW_DEBUG) {
-                Log.d(TAG, "read len : " + len);
+            if (!mSerial.isConnected())
+                return;
+
+            len = mSerial.read(rbuf);
+
+            if (len < 0) {
+                Log.d(TAG, "Fail to bulkTransfer(read data)");
+                return;
             }
-            //rbuf[len] = 0;
-            for (int j = 0; j < len; j++) {
-                //String temp=Integer.toHexString(rbuf[j]&0x000000FF);
-                //Log.i(TAG, "str_rbuf["+j+"]="+temp);
-                //int decimal = Integer.parseInt(temp, 16);
-                //Log.i(TAG, "dec["+j+"]="+decimal);
-                //sbHex.append((char)decimal);
-                //sbHex.append(temp);
-                sbHex.append((char) (rbuf[j] & 0x000000FF));
-            }
-            etRead.setText(sbHex.toString());
-            Toast.makeText(this, "len=" + len, Toast.LENGTH_SHORT).show();
-        } else {
-            if (SHOW_DEBUG) {
-                Log.d(TAG, "read len : 0 ");
-            }
-            etRead.setText("empty");
-            return;
-        }
 
-        try {
-            Thread.sleep(50);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+            if (len > 0) {
+                if (SHOW_DEBUG) {
+                    Log.d(TAG, "read len : " + len);
+                }
+                //rbuf[len] = 0;
+                for (int j = 0; j < len; j++) {
+                    //String temp=Integer.toHexString(rbuf[j]&0x000000FF);
+                    //Log.i(TAG, "str_rbuf["+j+"]="+temp);
+                    //int decimal = Integer.parseInt(temp, 16);
+                    //Log.i(TAG, "dec["+j+"]="+decimal);
+                    //sbHex.append((char)decimal);
+                    //sbHex.append(temp);
+                    sbHex.append((char) (rbuf[j] & 0x000000FF));
+                }
+                etRead.setText(sbHex.toString());
+                Toast.makeText(this, "len=" + len, Toast.LENGTH_SHORT).show();
 
-        Log.d(TAG, "Leave readDataFromSerial");
-    }//readDataFromSerial
+                NMEA nmea = new NMEA();
+                nmea.parse(sbHex.toString());
+                Log.v(TAG, nmea.position.toString());
+
+
+            } else {
+                if (SHOW_DEBUG) {
+                    Log.d(TAG, "read len : 0 ");
+                }
+                etRead.setText("empty");
+                return;
+            }
+
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            Log.d(TAG, "Leave readDataFromSerial");
+        }//readDataFromSerial
+    }
 
     private void writeDataToSerial() {
 
