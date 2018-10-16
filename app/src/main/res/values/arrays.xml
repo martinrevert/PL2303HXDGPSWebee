@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="BaudRate_Var">
+        <item >4800</item>
         <item >9600</item>
         <item >19200</item>
         <item >115200</item>
