@@ -5,7 +5,7 @@ android {
     buildToolsVersion '28.0.3'
 
     defaultConfig {
-        applicationId "com.prolific.pl2303hxdsimpletest"
+        applicationId "com.prolific.pl2303hxdGPSWebee"
         minSdkVersion 19
         targetSdkVersion 27
     }
@@ -21,4 +21,11 @@ android {
 dependencies {
     implementation 'com.android.support:support-v4:27.1.1'
     implementation files('libs/pl2303driver.jar')
+    implementation project(':nodejsmanager')
+    implementation('io.socket:socket.io-client:0.8.3') {
+        // excluding org.json which is provided by Android
+        exclude group: 'org.json', module: 'json'
+    }
+    implementation 'com.google.code.gson:gson:2.8.5'
 }
+

@@ -1,34 +1,30 @@
-package com.prolific.pl2303hxdsimpletest;
+package com.prolific.pl2303hxdGPSWebee;
 
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.Arrays;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.Random;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
+import io.socket.client.IO;
+import io.socket.emitter.Emitter;
+import io.socket.engineio.client.transports.WebSocket;
 import tw.com.prolific.driver.pl2303.PL2303Driver;
-import tw.com.prolific.driver.pl2303.PL2303Driver.DataBits;
-import tw.com.prolific.driver.pl2303.PL2303Driver.FlowControl;
-import tw.com.prolific.driver.pl2303.PL2303Driver.Parity;
-import tw.com.prolific.driver.pl2303.PL2303Driver.StopBits;
 
 import android.app.Activity;
-import android.app.ActivityManager;
-import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.SharedPreferences;
 import android.hardware.usb.UsbManager;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-import android.preference.PreferenceManager;
+
 import android.text.format.Time;
 import android.util.Log;
-import android.view.Menu;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemSelectedListener;
@@ -40,7 +36,18 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-public class PL2303HXDSimpleTest extends Activity {
+import com.example.google.nodejsmanager.nodejsmanager.ConnectionManager;
+import com.example.google.nodejsmanager.nodejsmanager.SocketManager;
+import com.google.gson.JsonObject;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import static com.prolific.pl2303hxdGPSWebee.Constants.API_KEY;
+import static com.prolific.pl2303hxdGPSWebee.Constants.API_SECRET;
+import static java.util.concurrent.Executors.newScheduledThreadPool;
+
+public class PL2303HXDActivity extends Activity implements  ConnectionManager.EventCallbackListener{
 
     // debug settings
     // private static final boolean SHOW_DEBUG = false;
@@ -87,7 +94,15 @@ public class PL2303HXDSimpleTest extends Activity {
     private PL2303Driver.FlowControl mFlowControl = PL2303Driver.FlowControl.OFF;
 
 
-    private static final String ACTION_USB_PERMISSION = "com.prolific.pl2303hxdsimpletest.USB_PERMISSION";
+    int len; // lenght of buffer of bytes
+    byte[] rbuf; // buufer itself
+    private StringBuffer sbHex;
+
+    private SocketManager socketManager;
+    private int connectionIntents = 0;
+    private ScheduledExecutorService schedulePingViot;
+
+    private static final String ACTION_USB_PERMISSION = "com.prolific.pl2303hxdGPSWebee.USB_PERMISSION";
 
     private static final String NULL = null;
 
@@ -181,6 +196,8 @@ public class PL2303HXDSimpleTest extends Activity {
 
         }
 
+        connectSocketViot();
+
         Log.d(TAG, "Leave onCreate");
     }//onCreate
 
@@ -234,34 +251,8 @@ public class PL2303HXDSimpleTest extends Activity {
         Log.d(TAG, "Leave onResume");
     }
 
-    /*
-    public void SetNewVIDPID(){
-
-         Log.d(TAG, "Enter SetNewVIDPID");
-         String strVIDPID = etNewVIDPID.getText().toString();
-         Log.d(TAG, "new VID_PID : " + strVIDPID);
-
-            if(!mSerial.isConnected()) {
-             if (SHOW_DEBUG) {
-                    Log.d(TAG, "New instance : " + mSerial);
-             }
-
-             if( !mSerial.Set_NewVID_PID(strVIDPID) ) {
-                 Log.d(TAG, "SetNewVIDPID_2 : " + mSerial);
-                    return;
-              } else {
-                 Log.d(TAG, "onResume:enumerate succeeded!");
-              }
-          }//if isConnected
-          Toast.makeText(this, "attached", Toast.LENGTH_SHORT).show();
-          Log.d(TAG, "attached!");
-          openUsbSerial();
-          Log.d(TAG, "Leave SetNewVIDPID");
-    }
-     */
     private void openUsbSerial() {
         Log.d(TAG, "Enter  openUsbSerial");
-
 
         if (null == mSerial)
             return;
@@ -312,70 +303,69 @@ public class PL2303HXDSimpleTest extends Activity {
 
     private void readDataFromSerial() {
 
-        int len;
-        byte[] rbuf = new byte[4096];
-        //byte[] rbuf = new byte[20];
-        StringBuffer sbHex = new StringBuffer();
-        // String line = "";
-        // BufferedReader reader = new BufferedReader(new InputStreamReader(rbuf, "UTF-8"));
+        while (SHOW_DEBUG) {
+
+            AsyncTask.execute(new Runnable() {
+                @Override
+                public void run() {
+
+                    //your background code
+
+                    rbuf = new byte[4096];
+
+                    sbHex = new StringBuffer();
+
+                    Log.d(TAG, "Enter readDataFromSerial");
+
+                    if (null == mSerial)
+                        return;
+
+                    if (!mSerial.isConnected())
+                        return;
+
+                    len = mSerial.read(rbuf);
+
+                    if (len < 0) {
+                        Log.d(TAG, "Fail to bulkTransfer(read data)");
+                        return;
+                    }
+
+                    if (len > 0) {
+                        if (SHOW_DEBUG) {
+                            Log.d(TAG, "read len : " + len);
+                        }
+                        //rbuf[len] = 0;
+                        for (int j = 0; j < len; j++) {
+                            sbHex.append((char) (rbuf[j] & 0x000000FF));
+                        }
+
+                        Log.v(TAG, sbHex.toString());
+
+                        NMEA nmea = new NMEA();
+                        nmea.parse(sbHex.toString());
+                        Log.v(TAG, nmea.position.toString());
 
 
-        Log.d(TAG, "Enter readDataFromSerial");
+                    } else {
+                        if (SHOW_DEBUG) {
+                            Log.d(TAG, "read len : 0 ");
+                        }
 
+                    }
 
-        while (mSerial.isConnected()) {
-
-            if (null == mSerial)
-                return;
-
-            if (!mSerial.isConnected())
-                return;
-
-            len = mSerial.read(rbuf);
-
-            if (len < 0) {
-                Log.d(TAG, "Fail to bulkTransfer(read data)");
-                return;
-            }
-
-            if (len > 0) {
-                if (SHOW_DEBUG) {
-                    Log.d(TAG, "read len : " + len);
                 }
-                //rbuf[len] = 0;
-                for (int j = 0; j < len; j++) {
-                    //String temp=Integer.toHexString(rbuf[j]&0x000000FF);
-                    //Log.i(TAG, "str_rbuf["+j+"]="+temp);
-                    //int decimal = Integer.parseInt(temp, 16);
-                    //Log.i(TAG, "dec["+j+"]="+decimal);
-                    //sbHex.append((char)decimal);
-                    //sbHex.append(temp);
-                    sbHex.append((char) (rbuf[j] & 0x000000FF));
-                }
-                etRead.setText(sbHex.toString());
-                Toast.makeText(this, "len=" + len, Toast.LENGTH_SHORT).show();
+            });
 
-                NMEA nmea = new NMEA();
-                nmea.parse(sbHex.toString());
-                Log.v(TAG, nmea.position.toString());
-
-
-            } else {
-                if (SHOW_DEBUG) {
-                    Log.d(TAG, "read len : 0 ");
-                }
-                etRead.setText("empty");
-                return;
-            }
 
             try {
-                Thread.sleep(50);
+                Thread.sleep(10000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
 
             Log.d(TAG, "Leave readDataFromSerial");
         }//readDataFromSerial
+
     }
 
     private void writeDataToSerial() {
@@ -678,4 +668,135 @@ public class PL2303HXDSimpleTest extends Activity {
         }
     }//MyOnItemSelectedListener
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    private Emitter.Listener onAuthenticated = new Emitter.Listener() {
+        @Override
+        public void call(Object... args) {
+            Log.d(TAG, "VIoT - onAuthenticated");
+            socketManager.getSocket().emit("lb-ping");
+            if (schedulePingViot == null) {
+                schedulePingViot = newScheduledThreadPool(5);
+            }
+            schedulePingViot.scheduleAtFixedRate(new Runnable() {
+                public void run() {
+                    try {
+                        if (socketManager.getSocket() != null
+                                && socketManager.getSocket().connected()) {
+                            socketManager.getSocket().emit("lb-ping");
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }, 0, 15, TimeUnit.SECONDS);
+        }
+    };
+
+    private Emitter.Listener onAndroidPongVIOT = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            if (socketManager.getSocket() != null) {
+                Log.d(TAG, "VIoT - pong received ...");
+            }
+        }
+    };
+
+    private void connectSocketViot() {
+        if (connectionIntents > 3) {
+            showErrorMessage();
+            return;
+        }
+        connectionIntents++;
+        socketManager = new SocketManager(this);
+        IO.Options opts = new IO.Options();
+        opts.transports = new String[]{WebSocket.NAME};
+        //opts.forceNew = true;
+        socketManager.createSocket(Constants.VIOT_BASE_URL, opts);
+
+
+        socketManager.getSocket().on("authenticated", onAuthenticated);
+        socketManager.getSocket().on("lb-pong", onAndroidPongVIOT);
+
+
+        if (socketManager.getSocket().connected()) {
+            socketManager.getSocket().disconnect();
+        }
+        socketManager.getSocket().connect();
+    }
+
+    private void showErrorMessage() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(PL2303HXDActivity.this, "Socket disconnected", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    JSONObject getCredentials() {
+        try {
+
+
+            String path = "/api/connections/generateToken?api_key=%s&api_secret=%s";
+            String[] APIs = new String[]{API_KEY, API_SECRET};
+            String generateTokenApi = Constants.VIOT_BASE_URL + path;
+            URL url = new URL(String.format(generateTokenApi, APIs[0],
+                    APIs[1]));
+            HttpURLConnection connection =
+                    (HttpURLConnection) url.openConnection();
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(connection.getInputStream()));
+            StringBuilder json = new StringBuilder(1024);
+            String tmp;
+            while ((tmp = reader.readLine()) != null)
+                json.append(tmp).append("\n");
+            reader.close();
+            return new JSONObject(json.toString());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    @Override
+    public void onEventCallbackReceived(String event, String socketIdentifier) {
+        switch (event) {
+            case ConnectionManager.EVENT_CONNECT: {
+                Log.d(TAG, "VIoT - onConnectEvent");
+                if (socketManager.getSocket() != null) {
+                    JSONObject json = getCredentials();
+                    try {
+                        if (json != null) {
+                            JSONObject requestJSONObject = new JSONObject();
+                            requestJSONObject.put("id", json.getString("id"));
+                            requestJSONObject.put("connectionId", json.getString("connectionId"));
+                            requestJSONObject.put("agent", "hub");
+                            requestJSONObject.put("uuid", "ATV329QGPSSensorPOC");
+                            socketManager.getSocket().emit("webee-auth-strategy", requestJSONObject);
+                            Log.i(TAG, "json: " + requestJSONObject);
+                        }
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+                }
+                break;
+            }
+            case ConnectionManager.EVENT_DISCONNECT: {
+                Log.d(TAG, "VIoT - onDisconnectEvent");
+                connectSocketViot();
+                break;
+            }
+        }
+    }
+
+/*
+    @Override
+    public void onReadDataGPSSensor(JsonObject message) {
+        Log.v(TAG, "message" + message);
+        socketManager.getSocket().emit("webee-hub-logger", message);
+    }
+
+    */
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 }

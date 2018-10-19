@@ -1,1 +1,2 @@
-include ':app'
+include ':app',':nodejsmanager'
+project(':nodejsmanager').projectDir = new File('../nodejsmanager')

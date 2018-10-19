@@ -1,4 +1,4 @@
-package com.prolific.pl2303hxdsimpletest;
+package com.prolific.pl2303hxdGPSWebee;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -120,7 +120,9 @@ public class NMEA {
             }
             position.updatefix();
         }
-
-        return position;
+        if (position.quality >= 1) {
+            return position;
+        }
+        return null;
     }
 }
