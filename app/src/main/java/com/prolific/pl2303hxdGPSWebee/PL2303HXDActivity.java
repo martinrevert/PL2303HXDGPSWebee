@@ -47,7 +47,7 @@ import static com.prolific.pl2303hxdGPSWebee.Constants.API_KEY;
 import static com.prolific.pl2303hxdGPSWebee.Constants.API_SECRET;
 import static java.util.concurrent.Executors.newScheduledThreadPool;
 
-public class PL2303HXDActivity extends Activity implements  ConnectionManager.EventCallbackListener{
+public class PL2303HXDActivity extends Activity implements ConnectionManager.EventCallbackListener {
 
     // debug settings
     // private static final boolean SHOW_DEBUG = false;
@@ -311,7 +311,7 @@ public class PL2303HXDActivity extends Activity implements  ConnectionManager.Ev
 
                     //your background code
 
-                    rbuf = new byte[4096];
+                    rbuf = new byte[1024];
 
                     sbHex = new StringBuffer();
 
@@ -339,10 +339,11 @@ public class PL2303HXDActivity extends Activity implements  ConnectionManager.Ev
                             sbHex.append((char) (rbuf[j] & 0x000000FF));
                         }
 
-                        Log.v(TAG, sbHex.toString());
-
                         NMEA nmea = new NMEA();
-                        nmea.parse(sbHex.toString());
+                        String nmeastring = sbHex.toString();
+                        nmeastring = nmeastring.substring(nmeastring.indexOf("$GPGGA"));
+                        Log.v(TAG, nmeastring);
+                        nmea.parse(nmeastring);
                         Log.v(TAG, nmea.position.toString());
 
 
