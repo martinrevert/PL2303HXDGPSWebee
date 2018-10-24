@@ -1,5 +1,7 @@
 package com.prolific.pl2303hxdGPSWebee;
 
+import com.google.gson.JsonObject;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -92,6 +94,26 @@ public class NMEA {
 
         public String toString() {
             return String.format("POSITION: lat: %f, lon: %f, time: %f, Q: %d, dir: %f, alt: %f, vel: %f", lat, lon, time, quality, dir, altitude, velocity);
+        }
+
+        public JsonObject toJson(){
+
+            JsonObject message = new JsonObject();
+
+            JsonObject geopoint = new JsonObject();
+            geopoint.addProperty("lat", lat);
+            geopoint.addProperty("lng",lon);
+
+            message.addProperty("deviceId", "S4U0304088");
+            message.addProperty("geopoint", String.valueOf(geopoint));
+            message.addProperty("lat",lat);
+            message.addProperty("lng", lon);
+            message.addProperty("quality",quality);
+            message.addProperty("direction", dir);
+            message.addProperty("altitude", altitude);
+            message.addProperty("velocity", velocity);
+
+            return message;
         }
     }
 

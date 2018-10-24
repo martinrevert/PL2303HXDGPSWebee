@@ -204,6 +204,8 @@ public class PL2303HXDActivity extends Activity implements ConnectionManager.Eve
     protected void onStop() {
         Log.d(TAG, "Enter onStop");
         super.onStop();
+        if (socketManager.getSocket() != null)
+            socketManager.getSocket().disconnect();
         Log.d(TAG, "Leave onStop");
     }
 
@@ -248,7 +250,15 @@ public class PL2303HXDActivity extends Activity implements ConnectionManager.Eve
         }//if isConnected
         Toast.makeText(this, "attached", Toast.LENGTH_SHORT).show();
 
+        ConnectionManager.subscribeToListener(this);
+
         Log.d(TAG, "Leave onResume");
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        ConnectionManager.unSubscribeToListener();
     }
 
     private void openUsbSerial() {
@@ -344,7 +354,8 @@ public class PL2303HXDActivity extends Activity implements ConnectionManager.Eve
                         nmeastring = nmeastring.substring(nmeastring.indexOf("$GPGGA"));
                         Log.v(TAG, nmeastring);
                         nmea.parse(nmeastring);
-                        Log.v(TAG, nmea.position.toString());
+                        Log.v(TAG, nmea.position.toJson().toString());
+                        socketManager.getSocket().emit("webee-hub-logger", nmea.position.toJson());
 
 
                     } else {
@@ -660,7 +671,6 @@ public class PL2303HXDActivity extends Activity implements ConnectionManager.Eve
 
             if (res < 0) {
                 Log.d(TAG, "fail to setup");
-                return;
             }
         }
 
@@ -737,8 +747,6 @@ public class PL2303HXDActivity extends Activity implements ConnectionManager.Eve
 
     JSONObject getCredentials() {
         try {
-
-
             String path = "/api/connections/generateToken?api_key=%s&api_secret=%s";
             String[] APIs = new String[]{API_KEY, API_SECRET};
             String generateTokenApi = Constants.VIOT_BASE_URL + path;
