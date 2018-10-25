@@ -7,6 +7,8 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Random;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -18,7 +20,6 @@ import tw.com.prolific.driver.pl2303.PL2303Driver;
 import android.app.Activity;
 import android.content.Context;
 import android.hardware.usb.UsbManager;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -38,7 +39,6 @@ import android.widget.Toast;
 
 import com.example.google.nodejsmanager.nodejsmanager.ConnectionManager;
 import com.example.google.nodejsmanager.nodejsmanager.SocketManager;
-import com.google.gson.JsonObject;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -48,9 +48,6 @@ import static com.prolific.pl2303hxdGPSWebee.Constants.API_SECRET;
 import static java.util.concurrent.Executors.newScheduledThreadPool;
 
 public class PL2303HXDActivity extends Activity implements ConnectionManager.EventCallbackListener {
-
-    // debug settings
-    // private static final boolean SHOW_DEBUG = false;
 
     private static final boolean SHOW_DEBUG = true;
 
@@ -63,9 +60,6 @@ public class PL2303HXDActivity extends Activity implements ConnectionManager.Eve
     private static final int LINEFEED_CODE_LF = 2;
 
     PL2303Driver mSerial;
-
-    //    private ScrollView mSvText;
-    //   private StringBuilder mText = new StringBuilder();
 
     String TAG = "PL2303HXD_APLog";
 
@@ -106,14 +100,6 @@ public class PL2303HXDActivity extends Activity implements ConnectionManager.Eve
 
     private static final String NULL = null;
 
-    // Linefeed
-    //    private final static String BR = System.getProperty("line.separator");
-
-    public Spinner PL2303HXD_BaudRate_spinner;
-    public int PL2303HXD_BaudRate;
-    public String PL2303HXD_BaudRate_str = "B4800";
-
-    private String strStr;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -122,72 +108,14 @@ public class PL2303HXDActivity extends Activity implements ConnectionManager.Eve
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_pl2303_hxdsimple_test);
 
-        PL2303HXD_BaudRate_spinner = (Spinner) findViewById(R.id.spinner1);
-
-        ArrayAdapter<CharSequence> adapter =
-                ArrayAdapter.createFromResource(this, R.array.BaudRate_Var, android.R.layout.simple_spinner_item);
-
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-
-        PL2303HXD_BaudRate_spinner.setAdapter(adapter);
-        PL2303HXD_BaudRate_spinner.setOnItemSelectedListener(new MyOnItemSelectedListener());
-
-        Button mButton01 = (Button) findViewById(R.id.button1);
-        mButton01.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View v) {
-                openUsbSerial();
-            }
-        });
-
-        btWrite = (Button) findViewById(R.id.button2);
-        btWrite.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View v) {
-                etWrite = (EditText) findViewById(R.id.editText1);
-                writeDataToSerial();
-            }
-        });
-
-        btRead = (Button) findViewById(R.id.button3);
-        btRead.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View v) {
-                etRead = (EditText) findViewById(R.id.editText2);
-                readDataFromSerial();
-            }
-        });
-
-        btLoopBack = (Button) findViewById(R.id.button4);
-        btLoopBack.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View v) {
-                pbLoopBack = (ProgressBar) findViewById(R.id.ProgressBar1);
-                setProgressBarVisibility(true);
-                pbLoopBack.setIndeterminate(false);
-                pbLoopBack.setVisibility(View.VISIBLE);
-                pbLoopBack.setProgress(0);
-                tvLoopBack = (TextView) findViewById(R.id.textView2);
-                new Thread(tLoop).start();
-            }
-        });
-
-
-        btGetSN = (Button) findViewById(R.id.btn_GetSN);
-        tvShowSN = (TextView) findViewById(R.id.text_ShowSN);
-        tvShowSN.setText("");
-        btGetSN.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View v) {
-
-
-                ShowPL2303HXD_SerialNmber();
-
-            }
-        });
         // get service
         mSerial = new PL2303Driver((UsbManager) getSystemService(Context.USB_SERVICE),
-                this, ACTION_USB_PERMISSION);
+                getApplicationContext(), ACTION_USB_PERMISSION);
 
         // check USB host function.
         if (!mSerial.PL2303USBFeatureSupported()) {
 
-            Toast.makeText(this, "No Support USB host API", Toast.LENGTH_SHORT)
+            Toast.makeText(PL2303HXDActivity.this, "No Support USB host API", Toast.LENGTH_SHORT)
                     .show();
 
             Log.d(TAG, "No Support USB host API");
@@ -195,6 +123,26 @@ public class PL2303HXDActivity extends Activity implements ConnectionManager.Eve
             mSerial = null;
 
         }
+
+
+        new Timer().schedule(new TimerTask() {
+            @Override
+            public void run() {
+                // this code will be executed after 2 seconds
+
+                openUsbSerial();
+
+            }
+        }, 10000);
+
+
+        new Timer().scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                readDataFromSerial();
+            }
+        }, 0, 5000);
+
 
         connectSocketViot();
 
@@ -237,6 +185,7 @@ public class PL2303HXDActivity extends Activity implements ConnectionManager.Eve
         //if (UsbManager.ACTION_USB_DEVICE_ATTACHED.equals(action))
         if (!mSerial.isConnected()) {
             if (SHOW_DEBUG) {
+                openUsbSerial();
                 Log.d(TAG, "New instance : " + mSerial);
             }
 
@@ -271,27 +220,8 @@ public class PL2303HXDActivity extends Activity implements ConnectionManager.Eve
             if (SHOW_DEBUG) {
                 Log.d(TAG, "openUsbSerial : isConnected ");
             }
-            String str = PL2303HXD_BaudRate_spinner.getSelectedItem().toString();
-            int baudRate = Integer.parseInt(str);
-            switch (baudRate) {
-                case 4800:
-                    mBaudrate = PL2303Driver.BaudRate.B4800;
-                    break;
-                case 9600:
-                    mBaudrate = PL2303Driver.BaudRate.B9600;
-                    break;
-                case 19200:
-                    mBaudrate = PL2303Driver.BaudRate.B19200;
-                    break;
-                case 115200:
-                    mBaudrate = PL2303Driver.BaudRate.B115200;
-                    break;
-                default:
-                    mBaudrate = PL2303Driver.BaudRate.B4800;
-                    break;
-            }
-            Log.d(TAG, "baudRate:" + baudRate);
-            // if (!mSerial.InitByBaudRate(mBaudrate)) {
+
+
             if (!mSerial.InitByBaudRate(mBaudrate, 700)) {
                 if (!mSerial.PL2303Device_IsHasPermission()) {
                     Toast.makeText(this, "cannot open, maybe no permission", Toast.LENGTH_SHORT).show();
@@ -302,7 +232,7 @@ public class PL2303HXDActivity extends Activity implements ConnectionManager.Eve
                 }
             } else {
 
-                Toast.makeText(this, "connected : ", Toast.LENGTH_SHORT).show();
+               // Toast.makeText(PL2303HXDActivity.this, "connected : ", Toast.LENGTH_SHORT).show();
 
             }
         }//isConnected
@@ -313,72 +243,78 @@ public class PL2303HXDActivity extends Activity implements ConnectionManager.Eve
 
     private void readDataFromSerial() {
 
-        while (SHOW_DEBUG) {
+        //  while (SHOW_DEBUG) {
 
-            AsyncTask.execute(new Runnable() {
-                @Override
-                public void run() {
+        Thread MyThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
 
-                    //your background code
+                // while (SHOW_DEBUG) {
 
-                    rbuf = new byte[1024];
+                //your background code
 
-                    sbHex = new StringBuffer();
+                rbuf = new byte[320];
 
-                    Log.d(TAG, "Enter readDataFromSerial");
+                sbHex = new StringBuffer();
 
-                    if (null == mSerial)
-                        return;
+                Log.d(TAG, "Enter readDataFromSerial");
 
-                    if (!mSerial.isConnected())
-                        return;
+                if (null == mSerial)
+                    return;
 
-                    len = mSerial.read(rbuf);
+                if (!mSerial.isConnected())
+                    return;
 
-                    if (len < 0) {
-                        Log.d(TAG, "Fail to bulkTransfer(read data)");
-                        return;
+                len = mSerial.read(rbuf);
+
+                if (len < 0) {
+                    Log.d(TAG, "Fail to bulkTransfer(read data)");
+                    return;
+                }
+
+                if (len > 0) {
+                    if (SHOW_DEBUG) {
+                        Log.d(TAG, "read len : " + len);
+                    }
+                    //rbuf[len] = 0;
+                    for (int j = 0; j < len; j++) {
+                        sbHex.append((char) (rbuf[j] & 0x000000FF));
                     }
 
-                    if (len > 0) {
-                        if (SHOW_DEBUG) {
-                            Log.d(TAG, "read len : " + len);
-                        }
-                        //rbuf[len] = 0;
-                        for (int j = 0; j < len; j++) {
-                            sbHex.append((char) (rbuf[j] & 0x000000FF));
-                        }
-
-                        NMEA nmea = new NMEA();
-                        String nmeastring = sbHex.toString();
+                    NMEA nmea = new NMEA();
+                    String nmeastring = sbHex.toString();
+                    try {
                         nmeastring = nmeastring.substring(nmeastring.indexOf("$GPGGA"));
                         Log.v(TAG, nmeastring);
                         nmea.parse(nmeastring);
                         Log.v(TAG, nmea.position.toJson().toString());
                         socketManager.getSocket().emit("webee-hub-logger", nmea.position.toJson());
+                    } catch (Exception s) {
+                        s.printStackTrace();
+                    }
 
-
-                    } else {
-                        if (SHOW_DEBUG) {
-                            Log.d(TAG, "read len : 0 ");
-                        }
-
+                } else {
+                    if (SHOW_DEBUG) {
+                        Log.d(TAG, "read len : 0 ");
                     }
 
                 }
-            });
 
-
-            try {
-                Thread.sleep(10000);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
             }
+        });
 
-            Log.d(TAG, "Leave readDataFromSerial");
-        }//readDataFromSerial
+        MyThread.start();
 
-    }
+/*
+        try {
+            Thread.sleep(10000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+*/
+        Log.d(TAG, "Leave readDataFromSerial");
+    }//readDataFromSerial
+
 
     private void writeDataToSerial() {
 
